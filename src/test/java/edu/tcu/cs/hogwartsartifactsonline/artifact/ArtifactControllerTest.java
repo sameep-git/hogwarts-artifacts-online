@@ -1,22 +1,26 @@
 package edu.tcu.cs.hogwartsartifactsonline.artifact;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import edu.tcu.cs.hogwartsartifactsonline.artifact.dto.ArtifactDto;
 import edu.tcu.cs.hogwartsartifactsonline.system.StatusCode;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
@@ -28,6 +32,9 @@ class ArtifactControllerTest {
 
     @MockitoBean
     ArtifactService artifactService;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     List<Artifact> artifacts;
 
@@ -126,6 +133,93 @@ class ArtifactControllerTest {
                 .andExpect(jsonPath("$.data[0].name").value("Deluminator"))
                 .andExpect(jsonPath("$.data[1].id").value("1250808601744904192"))
                 .andExpect(jsonPath("$.data[1].name").value("Invisibility Cloak"));
+    }
+
+    @Test
+    void testAddArtifactSuccess() throws Exception {
+        // Given
+        ArtifactDto artifactDto = new ArtifactDto(
+                null,
+                "Remembrall",
+                "A Remembrall was a magical large marble-sized glass ball that contained smoke which turned red when its owner or user had forgotten something. It turned clear once whatever was forgotten was remembered.",
+                "ImageUrl",
+                null
+        );
+
+        String json = this.objectMapper.writeValueAsString(artifactDto);
+
+        Artifact savedArtifact = new Artifact();
+        savedArtifact.setId("1250808601744904197");
+        savedArtifact.setName("Remembrall");
+        savedArtifact.setDescription("A Remembrall was a magical large marble-sized glass ball that contained smoke which turned red when its owner or user had forgotten something. It turned clear once whatever was forgotten was remembered.");
+        savedArtifact.setImageUrl("ImageUrl");
+
+        given(this.artifactService.save(Mockito.any(Artifact.class))).willReturn(savedArtifact);
+
+        // When and then
+        this.mockMvc.perform(post("/api/v1/artifacts").contentType(MediaType.APPLICATION_JSON).content(json).accept(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.flag").value(true))
+                .andExpect(jsonPath("$.code").value(StatusCode.SUCCESS))
+                .andExpect(jsonPath("$.message").value("Add Success"))
+                .andExpect(jsonPath("$.data.id").isNotEmpty())
+                .andExpect(jsonPath("$.data.name").value(savedArtifact.getName()))
+                .andExpect(jsonPath("$.data.description").value(savedArtifact.getDescription()))
+                .andExpect(jsonPath("$.data.imageUrl").value(savedArtifact.getImageUrl()));
+    }
+
+    @Test
+    void testUpdateArtifactSuccess() throws Exception {
+        // Given
+        ArtifactDto artifactDto = new ArtifactDto(
+                "1250808601744904192",
+                "Invisibility Cloak",
+                "A new description.",
+                "ImageUrl",
+                null
+        );
+
+        String json = this.objectMapper.writeValueAsString(artifactDto);
+
+        Artifact updatedArtifact = new Artifact();
+        updatedArtifact.setId("1250808601744904192");
+        updatedArtifact.setName("Invisibility Cloak");
+        updatedArtifact.setDescription("A new description.");
+        updatedArtifact.setImageUrl("ImageUrl");
+
+        given(this.artifactService.update(eq("1250808601744904192"), Mockito.any(Artifact.class))).willReturn(updatedArtifact);
+
+        // When and then
+        this.mockMvc.perform(put("/api/v1/artifacts/1250808601744904192").contentType(MediaType.APPLICATION_JSON).content(json).accept(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.flag").value(true))
+                .andExpect(jsonPath("$.code").value(StatusCode.SUCCESS))
+                .andExpect(jsonPath("$.message").value("Update Success"))
+                .andExpect(jsonPath("$.data.id").value("1250808601744904192"))
+                .andExpect(jsonPath("$.data.name").value(updatedArtifact.getName()))
+                .andExpect(jsonPath("$.data.description").value(updatedArtifact.getDescription()))
+                .andExpect(jsonPath("$.data.imageUrl").value(updatedArtifact.getImageUrl()));
+    }
+
+    @Test
+    void testUpdateArtifactErrorWithNonExistentId() throws Exception {
+        // Given
+        ArtifactDto artifactDto = new ArtifactDto(
+                "1250808601744904192",
+                "Invisibility Cloak",
+                "A new description.",
+                "ImageUrl",
+                null
+        );
+
+        String json = this.objectMapper.writeValueAsString(artifactDto);
+
+        given(this.artifactService.update(eq("1250808601744904192"), Mockito.any(Artifact.class))).willThrow(new ArtifactNotFoundException("1250808601744904192"));
+
+        // When and then
+        this.mockMvc.perform(put("/api/v1/artifacts/1250808601744904192").contentType(MediaType.APPLICATION_JSON).content(json).accept(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.flag").value(false))
+                .andExpect(jsonPath("$.code").value(StatusCode.NOT_FOUND))
+                .andExpect(jsonPath("$.message").value("Could not find artifact with Id 1250808601744904192 :("))
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 
 }
